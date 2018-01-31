@@ -1,0 +1,3 @@
+[Definition]
+failregex = (?i)^<HOST>\s-\s-.*"(GET|POST|HEAD|CONNECT|OPTIONS).*"\s(40\d).*$
+ignoreregex = (?i)^<HOST>\s-\s-.*"COMODO\sDCV"$

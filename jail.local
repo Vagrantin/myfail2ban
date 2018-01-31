@@ -1,0 +1,385 @@
+[DEFAULT]
+
+#
+# MISCELLANEOUS OPTIONS
+#
+
+# "ignoreip" can be an IP address, a CIDR mask or a DNS host. Fail2ban will not
+# ban a host which matches an address in this list. Several addresses can be
+# defined using space (and/or comma) separator.
+ignoreip = 127.0.0.1/8 210.160.194.73 150.31.44.41
+
+# "bantime" is the number of seconds that a host is banned.
+bantime = 25200
+
+wp_error_logs = /var/log/virtualmin/*.mydom.com_error_log
+wp_access_logs = /var/log/virtualmin/*.mydom.com_access_log
+
+#
+# ACTIONS
+#
+
+
+# Default protocol
+protocol = all
+
+#
+# JAILS
+#
+
+#
+# SSH servers
+#
+
+
+
+[sshd-ddos]
+# This jail corresponds to the standard configuration in Fail2ban.
+# The mail-whois action send a notification e-mail with a whois request
+# in the body.
+port    = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+enabled = true
+banaction = %(banaction_allports)s
+filter = sshd-ddos
+
+
+#
+# HTTP servers
+#
+
+[apache-auth]
+
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+enabled = true
+filter = apache-auth
+banaction = %(banaction_allports)s
+
+
+[apache-badbots]
+# Ban hosts which agent identifies spammer robots crawling the web
+# for email addresses. The mail outputs are buffered.
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+bantime  = 172800
+maxretry = 1
+enabled = true
+filter = apache-badbots
+banaction = %(banaction_allports)s
+
+
+[apache-noscript]
+
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+enabled = true
+filter = apache-noscript
+banaction = %(banaction_allports)s
+
+[apache-overflows]
+
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+maxretry = 2
+enabled = true
+filter = apache-overflows
+banaction = %(banaction_allports)s
+        
+[apache-nohome]
+
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+maxretry = 2
+enabled = true
+filter = apache-nohome
+banaction = %(banaction_allports)s
+
+[apache-botsearch]
+
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+maxretry = 2
+enabled = true
+filter = apache-botsearch
+banaction = %(banaction_allports)s
+
+[apache-fakegooglebot]
+
+port     = http,https
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+ignorecommand = %(ignorecommands_dir)s/apache-fakegooglebot <ip>
+enabled = true
+filter = apache-fakegooglebot
+banaction = %(banaction_allports)s
+
+[apache-modsecurity]
+
+port     = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+maxretry = 2
+enabled = true
+filter = apache-modsecurity
+banaction = %(banaction_allports)s
+
+[apache-shellshock]
+
+port    = http,https
+logpath = %(apache_error_log)s
+        %(wp_error_logs)s
+maxretry = 1
+enabled = true
+filter = apache-shellshock
+banaction = %(banaction_allports)s
+
+
+
+# Ban attackers that try to use PHP's URL-fopen() functionality
+# through GET/POST variables. - Experimental, with more than a year
+# of usage in production environments.
+
+[php-url-fopen]
+
+port    = http,https
+logpath = %(apache_access_log)s
+enabled = true
+filter = php-url-fopen
+banaction = %(banaction_allports)s
+#
+# Web Applications
+#
+#
+
+[webmin-auth]
+
+port    = 10000
+logpath = %(syslog_authpriv)s
+backend = %(syslog_backend)s
+enabled = true
+filter = webmin-auth
+banaction = %(banaction_allports)s
+
+#
+# FTP servers
+#
+
+
+[proftpd]
+
+port     = ftp,ftp-data,ftps,ftps-data
+logpath  = %(proftpd_log)s
+backend  = %(proftpd_backend)s
+enabled = true
+banaction = %(banaction_allports)s
+maxretry = 2
+filter = proftpd
+
+
+#
+# Miscellaneous
+#
+
+
+# To log wrong MySQL access attempts add to /etc/my.cnf in [mysqld] or
+# equivalent section:
+# log-warning = 2
+#
+# for syslog (daemon facility)
+# [mysqld_safe]
+# syslog
+#
+# for own logfile
+# [mysqld]
+# log-error=/var/log/mysqld.log
+[mysqld-auth]
+
+port     = 3306
+logpath  = %(mysql_log)s
+backend  = %(mysql_backend)s
+enabled = true
+filter = mysqld-auth
+banaction = %(banaction_allports)s
+
+
+# Jail for more extended banning of persistent abusers
+# !!! WARNINGS !!!
+# 1. Make sure that your loglevel specified in fail2ban.conf/.local
+#    is not at DEBUG level -- which might then cause fail2ban to fall into
+#    an infinite loop constantly feeding itself with non-informative lines
+# 2. Increase dbpurgeage defined in fail2ban.conf to e.g. 648000 (7.5 days)
+#    to maintain entries for failed logins for sufficient amount of time
+[recidive]
+
+logpath  = /var/log/fail2ban.log
+banaction = %(banaction_allports)s
+bantime  = 604800  ; 1 week
+findtime = 86400   ; 1 day
+
+[pass2allow-ftp]
+# this pass2allow example allows FTP traffic after successful HTTP authentication
+port         = ftp,ftp-data,ftps,ftps-data
+# knocking_url variable must be overridden to some secret value in jail.local
+knocking_url = /knocking/
+filter       = apache-pass[knocking_url="%(knocking_url)s"]
+# access log of the website with HTTP auth
+logpath      = %(apache_access_log)s
+blocktype    = RETURN
+returntype   = DROP
+bantime      = 3600
+maxretry     = 1
+findtime     = 1
+enabled = true
+banaction = %(banaction_allports)s
+
+[loop1]
+enabled = true
+filter = Fail2Ban_incr_Ban
+banaction = %(banaction_allports)s
+logpath = /var/log/fail2ban.log
+findtime = 86400
+bantime = 2592000
+maxretry = 2
+
+
+[loop2]
+enabled = true
+filter = Fail2Ban_incr_Ban
+banaction = %(banaction_allports)s
+logpath = /var/log/fail2ban.log
+findtime = 7776000
+bantime = 31536000
+
+[Go-http-client]
+enabled = true
+filter = Go-http-client
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+findtime = 2400
+
+[with_ip_only]
+enabled = true
+filter = with_ip_only
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+banaction = %(banaction_allports)s
+
+[Sysscan]
+enabled = true
+filter = Sysscan
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+
+[MagicBrowser]
+enabled = true
+filter = MagicBrowser
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+
+[EmailOpenPHP]
+enabled = true
+filter = EmailOpenPHP
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+
+[ApacheProxy]
+enabled = true
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+filter = ApacheProxy
+banaction = %(banaction_allports)s
+
+[Apache_HTTP_client]
+enabled = true
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+filter = Apache_HTTP_client
+
+[Python-url-lib]
+enabled = true
+filter = Python-url-lib
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+		
+[libwww-perl]
+enabled = true
+filter = libwww-perl
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+
+[okHTTP]
+enabled = true
+filter = okHTTP
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+
+[Telnet_access]
+enabled = true
+filter = Telnet_access
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+[No_USER_AGENT]
+enabled = true
+filter = No_USER_AGENT
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+[Curl]
+enabled = true
+filter = Curl
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+[Pear_HTTP_Request2]
+enabled = true
+filter = Pear_HTTP_Request2
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+[Crawler_multi_user_agent]
+enabled = true
+filter = Crawler_multi_user_agent
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+[Spam_crawler]
+enabled = true
+filter = Spam_crawler
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+maxretry = 1
+[Webdav_scan]
+enabled = true
+filter = Webdav_scan
+banaction = %(banaction_allports)s
+logpath = %(apache_access_log)s
+        %(wp_access_logs)s
+findtime = 60
